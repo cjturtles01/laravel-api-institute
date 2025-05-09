@@ -97,6 +97,37 @@ class WordPressPostController extends Controller
         ];
     }
 
+    public function user_reg_info($id)
+    {
+
+        $meta = DB::connection('wordpress')
+            ->table('usermeta')
+            ->where('user_id', 1715)
+            ->whereIn('meta_key', [
+                'billing_first_name',
+                'billing_last_name',
+                'billing_email',
+                'billing_company',
+                'billing_country',
+                'billing_billing_job_title',
+                'billing_billing_professional_designation'
+            ])
+            ->pluck('meta_value', 'meta_key');
+
+        return [
+
+            'user_registration_info' => [
+                'Firstname' => $meta['billing_first_name'] ?? null,
+                'Lastname' => $meta['billing_last_name'] ?? null,
+                'Email' => $meta['billing_email'] ?? null,
+                'Country' => $meta['billing_country'] ?? null,
+                'Company' => $meta['billing_company'] ?? null,
+                'Title || Job Title' => $meta['billing_billing_job_title'] ?? null,
+                'Professional Designation' => $meta['billing_billing_professional_designation'] ?? null,
+            ]
+        ];
+    }
+
 
     // CREATE
     public function store(Request $request)

@@ -22,7 +22,8 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 });
 
 Route::prefix('wp-posts')->group(function () {
-    Route::get('/{id}', [WordPressPostController::class, 'user_course_info']);
+    Route::get('/user_course_info/{id}', [WordPressPostController::class, 'user_course_info']);
+    Route::get('/user_reg_info/{id}', [WordPressPostController::class, 'user_reg_info']);
     Route::get('/', [WordPressPostController::class, 'course_catalog']);
     Route::post('/', [WordPressPostController::class, 'store']);
     Route::put('/{id}', [WordPressPostController::class, 'update']);
