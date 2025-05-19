@@ -189,9 +189,42 @@ class WordPressPostController extends Controller
     // READ ALL COURSES CATALOG
     public function course_catalog()
     {
-        return WordPressPost::where('post_status', 'publish')
-            ->where('post_type', 'sfwd-courses')
-            ->get();
+        $results = DB::connection('wordpress')->select("
+        SELECT 
+            ID,
+            post_author,
+            post_date,
+            post_date_gmt,
+            post_title,
+            post_excerpt,
+            post_status,
+            comment_status,
+            ping_status,
+            post_password,
+            post_name,
+            to_ping,
+            pinged,
+            post_modified,
+            post_modified_gmt,
+            post_content_filtered,
+            post_parent,
+            guid,
+            menu_order,
+            post_type,
+            post_mime_type,
+            comment_count,
+            REGEXP_REPLACE(
+              REGEXP_REPLACE(post_content, '\\\\[.*?\\\\]', ''), 
+              '<[^>]*>', ''
+            ) AS post_content
+        FROM 
+            wpwz_posts
+        WHERE 
+            post_status = 'publish' 
+            AND post_type = 'sfwd-courses'
+    ");
+
+        return response()->json($results);
     }
 
     // READ SINGLE USER & COURSE INFO
