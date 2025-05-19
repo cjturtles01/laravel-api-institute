@@ -44,7 +44,8 @@ return [
             'password'  => env('WP_DB_PASSWORD', ''),
             'charset'   => 'utf8mb4',
             'collation' => 'utf8mb4_unicode_ci',
-            'prefix'    => 'wpwz_', // default WordPress table prefix
+            // 'prefix'    => 'wpwz_', // default WordPress table prefix
+            'prefix'    => 'gcl_', // default WordPress table prefix
             'strict'    => false,
         ],
 
@@ -139,7 +140,7 @@ return [
 
         'options' => [
             'cluster' => env('REDIS_CLUSTER', 'redis'),
-            'prefix' => env('REDIS_PREFIX', Str::slug(env('APP_NAME', 'laravel'), '_').'_database_'),
+            'prefix' => env('REDIS_PREFIX', Str::slug(env('APP_NAME', 'laravel'), '_') . '_database_'),
         ],
 
         'default' => [
