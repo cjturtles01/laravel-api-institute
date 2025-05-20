@@ -189,20 +189,21 @@ class WordPressPostController extends Controller
     public function enrolled_users()
     {
         try {
-            // Run the query on the wordpress connection
+            $prefix = DB::connection('wordpress')->getTablePrefix(); // will return 'wpwx_'
+
             $results = DB::connection('wordpress')->select("
             SELECT 
                 p.ID AS course_id,
                 p.post_title,
                 COUNT(DISTINCT a.user_id) AS enrolled_users
             FROM 
-                wpwz_posts p
+                {$prefix}posts p
             LEFT JOIN 
-                wpwz_learndash_user_activity a 
+                {$prefix}learndash_user_activity a 
                 ON p.ID = a.course_id 
                 AND a.activity_type = 'course'
             INNER JOIN 
-                wpwz_users u 
+                {$prefix}users u 
                 ON a.user_id = u.ID
             WHERE 
                 p.post_type = 'sfwd-courses'
@@ -243,6 +244,7 @@ class WordPressPostController extends Controller
             ], 500);
         }
     }
+
 
 
 
