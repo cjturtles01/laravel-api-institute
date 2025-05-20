@@ -23,7 +23,7 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 });
 
 Route::prefix('wp-posts')->group(callback: function () {
-    Route::get('/test', [ExternalDataController::class, 'tester']);
+    Route::get('/sign_up_user_info/{id}', [WordPressPostController::class, 'sign_up_user_info']);
     Route::get('/course_description', [WordPressPostController::class, 'course_description']);
     Route::get('/enrolled_users', [WordPressPostController::class, 'enrolled_users']);
     Route::get('/course_user_info/{id}', [WordPressPostController::class, 'course_user_info']);
