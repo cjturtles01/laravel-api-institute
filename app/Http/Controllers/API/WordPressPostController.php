@@ -26,9 +26,10 @@ class WordPressPostController extends Controller
     {
         // Validate that submission_id is a positive integer
         if (!is_numeric($submission_id) || intval($submission_id) <= 0) {
-            Log::warning("Invalid submission ID received: {$submission_id}");
+            Log::warning('Invalid Submission ID received in sign_up_user_info', ['submission_id' => $submission_id]);
             return response()->json([
-                'error' => 'Invalid submission ID. It must be a positive number.'
+                'error' => 'Invalid Submission ID. It must be a positive number.',
+                'user_id_received' => $submission_id
             ], 400);
         }
 
@@ -96,6 +97,8 @@ class WordPressPostController extends Controller
     public function course_description()
     {
         try {
+            $prefix = DB::connection('wordpress')->getTablePrefix(); // Dynamically get prefix
+
             $results = DB::connection('wordpress')->select("
             SELECT 
                 p.ID,
@@ -148,10 +151,10 @@ class WordPressPostController extends Controller
                     '</p>', ''
                 ) AS course_description
             FROM 
-                wpwz_posts p
+                {$prefix}posts p
             JOIN (
                 SELECT DISTINCT post_title
-                FROM wpwz_posts
+                FROM {$prefix}posts
                 WHERE post_type = 'sfwd-courses'
                   AND post_status = 'publish'
             ) AS published_courses ON p.post_title = published_courses.post_title
@@ -164,9 +167,12 @@ class WordPressPostController extends Controller
         ");
 
             if (empty($results)) {
+                Log::info('No course descriptions found.');
                 return response()->json([
-                    'error' => 'No course descriptions found in the content.',
-                ], 404);
+                    'status' => 'success',
+                    'message' => 'No course descriptions found in the content.',
+                    'courses' => []
+                ], 200);
             }
 
             return response()->json([
@@ -178,7 +184,8 @@ class WordPressPostController extends Controller
             Log::error('Error in course_description API: ' . $e->getMessage());
 
             return response()->json([
-                'error' => 'Server error occurred while retrieving course descriptions.',
+                'status' => 'error',
+                'message' => 'Server error occurred while retrieving course descriptions.',
                 'details' => $e->getMessage()
             ], 500);
         }
@@ -251,15 +258,17 @@ class WordPressPostController extends Controller
     // Each Course with User Info
     public function course_user_info($userId)
     {
+
+        // Validate userId input
+        if (!is_numeric($userId) || intval($userId) <= 0) {
+            Log::warning('Invalid User ID received in course_user_info', ['user_id' => $userId]);
+            return response()->json([
+                'error' => 'Invalid User ID provided.',
+                'user_id_received' => $userId
+            ], 400);
+        }
+
         try {
-            // Validate userId input
-            if (!is_numeric($userId) || intval($userId) <= 0) {
-                Log::warning('Invalid user ID received in course_user_info', ['user_id' => $userId]);
-                return response()->json([
-                    'error' => 'Invalid user ID provided.',
-                    'user_id_received' => $userId
-                ], 400);
-            }
 
             // Step 1: Get user details from wc_customer_lookup
             $userDetails = DB::connection('wordpress')
@@ -336,11 +345,11 @@ class WordPressPostController extends Controller
 
 
     // READ ALL COURSES CATALOG
-
     public function course_catalog()
     {
         try {
-            // Run the query inside a try block to catch any exceptions
+            $prefix = DB::connection('wordpress')->getTablePrefix();
+
             $results = DB::connection('wordpress')->select("
             SELECT 
                 ID,
@@ -366,38 +375,46 @@ class WordPressPostController extends Controller
                 post_mime_type,
                 comment_count,
                 REGEXP_REPLACE(
-                    REGEXP_REPLACE(post_content, '\\\\[.*?\\\\]', ''), 
+                    REGEXP_REPLACE(post_content, '\\\\[[^\\\\]]*\\\\]', ''), 
                     '<[^>]*>', ''
                 ) AS post_content
             FROM 
-                wpwz_posts
+                {$prefix}posts
             WHERE 
                 post_status = 'publish' 
                 AND post_type = 'sfwd-courses'
         ");
 
-            // Handle empty result
             if (empty($results)) {
-                Log::info('Course catalog query returned no results.');
+                Log::info('course_catalog(): No published courses found.');
                 return response()->json([
+                    'status' => 'success',
                     'message' => 'No published courses found.',
+                    'data' => [],
                     'result_count' => 0
                 ], 200);
             }
 
-            return response()->json($results);
+            Log::info('course_catalog(): Retrieved ' . count($results) . ' courses.');
+
+            return response()->json([
+                'status' => 'success',
+                'result_count' => count($results),
+                'data' => $results
+            ], 200);
         } catch (\Illuminate\Database\QueryException $e) {
             Log::error('Database query error in course_catalog(): ' . $e->getMessage());
             return response()->json([
-                'error' => 'Database query error.',
+                'status' => 'error',
+                'message' => 'Database query error.',
                 'exception_message' => $e->getMessage()
             ], 500);
         } catch (\Exception $e) {
             Log::error('Unexpected error in course_catalog(): ' . $e->getMessage());
             return response()->json([
-                'error' => 'An unexpected error occurred while retrieving course catalog.',
-                'exception_message' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'status' => 'error',
+                'message' => 'An unexpected error occurred while retrieving the course catalog.',
+                'exception_message' => $e->getMessage()
             ], 500);
         }
     }
@@ -407,6 +424,16 @@ class WordPressPostController extends Controller
     // READ SINGLE USER & COURSE INFO
     public function user_course_info($id)
     {
+
+        // Validate userId input
+        if (!is_numeric($id) || intval($id) <= 0) {
+            Log::warning('Invalid ID received in user_course_info', ['id' => $id]);
+            return response()->json([
+                'error' => 'Invalid ID provided.',
+                'user_id_received' => $id
+            ], 400);
+        }
+
         try {
             // 1. Fetch user with only the needed fields
             $user = UsersModel::select('ID', 'user_login', 'user_nicename', 'user_email', 'display_name')
@@ -502,6 +529,18 @@ class WordPressPostController extends Controller
 
     public function user_reg_info($id)
     {
+
+        // Validate userId input
+        if (!is_numeric($id) || intval($id) <= 0) {
+            Log::warning('Invalid ID received in user_reg_info', ['id' => $id]);
+            return response()->json([
+                'error' => 'Invalid ID provided.',
+                'id' => $id
+            ], 400);
+        }
+
+
+
         try {
             $users = DB::connection('wordpress')
                 ->table('wc_customer_lookup')
@@ -542,9 +581,9 @@ class WordPressPostController extends Controller
 
     public function user_progress_per_courses($userId)
     {
-
         // Validate userId input
         if (!is_numeric($userId) || intval($userId) <= 0) {
+            Log::warning('Invalid User ID received in user_progress_per_courses', ['userId' => $userId]);
             return response()->json([
                 'error' => 'Invalid user ID provided.',
                 'user_id_received' => $userId
@@ -641,7 +680,7 @@ class WordPressPostController extends Controller
     }
 
 
-
+    // #################################################################################################################################
 
     // CREATE
     public function store(Request $request)
