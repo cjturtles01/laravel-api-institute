@@ -196,12 +196,13 @@ class WordPressPostController extends Controller
     public function enrolled_users()
     {
         try {
-            $prefix = DB::connection('wordpress')->getTablePrefix(); // will return 'wpwx_'
+            $prefix = DB::connection('wordpress')->getTablePrefix(); // e.g., 'wpwx_'
 
             $results = DB::connection('wordpress')->select("
             SELECT 
                 p.ID AS course_id,
                 p.post_title,
+                p.post_name,
                 COUNT(DISTINCT a.user_id) AS enrolled_users
             FROM 
                 {$prefix}posts p
@@ -216,7 +217,7 @@ class WordPressPostController extends Controller
                 p.post_type = 'sfwd-courses'
                 AND p.post_status = 'publish'
             GROUP BY 
-                p.ID, p.post_title
+                p.ID, p.post_title, p.post_name
         ");
 
             if (empty($results)) {
@@ -232,6 +233,7 @@ class WordPressPostController extends Controller
                 return [
                     'course_id' => (int)$item->course_id,
                     'title' => $item->post_title,
+                    'post_name' => $item->post_name,
                     'enrolled_users' => (int)$item->enrolled_users,
                 ];
             }, $results);
@@ -251,9 +253,6 @@ class WordPressPostController extends Controller
             ], 500);
         }
     }
-
-
-
 
     // Each Course with User Info
     public function course_user_info($userId)
@@ -609,9 +608,13 @@ class WordPressPostController extends Controller
             $results = [];
 
             foreach ($courseIds as $courseId) {
-                $courseTitle = $db->table('posts')
+                $course = $db->table('posts')
                     ->where('ID', $courseId)
-                    ->value('post_title') ?? 'Unknown';
+                    ->select('post_title', 'post_name')
+                    ->first();
+
+                $courseTitle = $course->post_title ?? 'Unknown';
+                $courseSlug = $course->post_name ?? 'unknown-slug';
 
                 $excludedPostIds = $db->table('postmeta as cm')
                     ->join('posts as cp', 'cp.ID', '=', 'cm.post_id')
@@ -650,6 +653,7 @@ class WordPressPostController extends Controller
                 $results[] = [
                     'course_id' => $courseId,
                     'course_title' => $courseTitle,
+                    'course_name' => $courseSlug,
                     'total_items' => $totalItems,
                     'completed_items' => $completedItems,
                     'progress_percent' => $totalItems > 0
@@ -657,6 +661,7 @@ class WordPressPostController extends Controller
                         : 0,
                 ];
             }
+
 
             return response()->json($results);
         } catch (\Illuminate\Database\QueryException $e) {
