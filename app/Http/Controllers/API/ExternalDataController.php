@@ -55,7 +55,7 @@ class ExternalDataController extends Controller
     ]);
   }
 
-  public function tester()
+  public function temporary_external_data()
   {
     $apiKey = config('services.newsapi.key');
     $topic = "Entrepreneurship";
