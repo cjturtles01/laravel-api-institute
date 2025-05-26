@@ -615,6 +615,8 @@ class WordPressPostController extends Controller
 
                 $courseTitle = $course->post_title ?? 'Unknown';
                 $courseSlug = $course->post_name ?? 'unknown-slug';
+                $courseLink = "https://staging-institute.iixglobal.com/$courseSlug/";
+
 
                 $excludedPostIds = $db->table('postmeta as cm')
                     ->join('posts as cp', 'cp.ID', '=', 'cm.post_id')
@@ -651,11 +653,11 @@ class WordPressPostController extends Controller
                     ->count();
 
                 $results[] = [
-                    'course_id' => $courseId,
+                    // 'course_id' => $courseId,
                     'course_title' => $courseTitle,
-                    'course_name' => $courseSlug,
-                    'total_items' => $totalItems,
-                    'completed_items' => $completedItems,
+                    'course_link' => $courseLink,
+                    // 'total_items' => $totalItems,
+                    // 'completed_items' => $completedItems,
                     'progress_percent' => $totalItems > 0
                         ? round(($completedItems / $totalItems) * 100, 2)
                         : 0,
