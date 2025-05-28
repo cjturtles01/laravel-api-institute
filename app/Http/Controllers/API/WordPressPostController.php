@@ -800,7 +800,10 @@ class WordPressPostController extends Controller
                     'course_title' => $courseTitle,
                     'course_link' => $courseLink,
                     'progress_percent' => $totalItems > 0 ? round(($completedItems / $totalItems) * 100, 2) : 0,
-                    'course_description' => $descriptionMap[$courseTitle] ?? 'No description available.'
+                    'course_description' => isset($descriptionMap[$courseTitle])
+                        ? trim(preg_replace('/[\t\n\r]+/', '', $descriptionMap[$courseTitle]))
+                        : 'No description available.'
+
                 ];
             }
 
