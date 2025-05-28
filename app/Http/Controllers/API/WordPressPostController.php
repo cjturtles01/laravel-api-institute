@@ -21,6 +21,74 @@ class WordPressPostController extends Controller
     //     return $data;
     // }
 
+    public function top_completed_courses()
+    {
+        try {
+            $db = DB::connection('wordpress');
+            $prefix = $db->getTablePrefix();
+
+            $results = $db->select("
+            SELECT 
+                p.ID AS course_id,
+                p.post_title,
+                p.post_name,
+                COUNT(DISTINCT a.user_id) AS enrolled_users,
+                COUNT(DISTINCT CASE WHEN a.activity_status = 1 THEN a.user_id END) AS completed_users
+            FROM 
+                {$prefix}posts p
+            JOIN 
+                {$prefix}learndash_user_activity a
+                ON p.ID = a.course_id
+            WHERE 
+                a.activity_type = 'course'
+                AND p.post_type = 'sfwd-courses'
+                AND p.post_status = 'publish'
+            GROUP BY 
+                p.ID, p.post_title, p.post_name
+            ORDER BY 
+                completed_users DESC
+        ");
+
+            if (empty($results)) {
+                Log::info("No course enrollments found.");
+                return response()->json([
+                    'status' => 'success',
+                    'message' => 'No course enrollments found.',
+                    'data' => []
+                ], 200);
+            }
+
+            $formatted = array_map(function ($item) {
+                return [
+                    'course_id' => (int)$item->course_id,
+                    'title' => $item->post_title,
+                    'post_name' => $item->post_name,
+                    'enrolled_users' => (int)$item->enrolled_users,
+                    'completed_users' => (int)$item->completed_users,
+                ];
+            }, $results);
+
+            return response()->json([
+                'status' => 'success',
+                'total_courses' => count($formatted),
+                'data' => $formatted
+            ], 200);
+        } catch (\Illuminate\Database\QueryException $e) {
+            Log::error("Database query error in top_courses_by_enrollment: " . $e->getMessage());
+            return response()->json([
+                'error' => 'Database query error.',
+                'exception_message' => $e->getMessage()
+            ], 500);
+        } catch (\Exception $e) {
+            Log::error("Unexpected error in top_courses_by_enrollment: " . $e->getMessage());
+            return response()->json([
+                'error' => 'An unexpected error occurred.',
+                'exception_message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+
     //SIGN-UP USER INFORMATION
     public function sign_up_user_info($submission_id)
     {
