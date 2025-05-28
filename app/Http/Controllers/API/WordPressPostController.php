@@ -27,27 +27,103 @@ class WordPressPostController extends Controller
             $db = DB::connection('wordpress');
             $prefix = $db->getTablePrefix();
 
+            // Get the course descriptions first
+            $descriptionQuery = "
+        SELECT 
+            p.post_title,
+            REPLACE(
+                REPLACE(
+                    SUBSTRING(
+                        p.post_content,
+                        LOCATE(
+                            CASE 
+                                WHEN LOCATE('<h2>About this Course</h2>', p.post_content) > 0 
+                                    THEN '<h2>About this Course</h2>'
+                                ELSE '<h2>About this Program</h2>'
+                            END,
+                            p.post_content
+                        ) + LENGTH(
+                            CASE 
+                                WHEN LOCATE('<h2>About this Course</h2>', p.post_content) > 0 
+                                    THEN '<h2>About this Course</h2>'
+                                ELSE '<h2>About this Program</h2>'
+                            END
+                        ),
+                        LOCATE('<a', p.post_content, 
+                            LOCATE(
+                                CASE 
+                                    WHEN LOCATE('<h2>About this Course</h2>', p.post_content) > 0 
+                                        THEN '<h2>About this Course</h2>'
+                                    ELSE '<h2>About this Program</h2>'
+                                END,
+                                p.post_content
+                            )
+                        ) - 
+                        (LOCATE(
+                            CASE 
+                                WHEN LOCATE('<h2>About this Course</h2>', p.post_content) > 0 
+                                    THEN '<h2>About this Course</h2>'
+                                ELSE '<h2>About this Program</h2>'
+                            END,
+                            p.post_content
+                        ) + LENGTH(
+                            CASE 
+                                WHEN LOCATE('<h2>About this Course</h2>', p.post_content) > 0 
+                                    THEN '<h2>About this Course</h2>'
+                                ELSE '<h2>About this Program</h2>'
+                            END
+                        ))
+                    ),
+                    '<p>', ''
+                ),
+                '</p>', ''
+            ) AS course_description
+        FROM 
+            {$prefix}posts p
+        JOIN (
+            SELECT DISTINCT post_title
+            FROM {$prefix}posts
+            WHERE post_type = 'sfwd-courses'
+              AND post_status = 'publish'
+        ) AS published_courses ON p.post_title = published_courses.post_title
+        WHERE 
+            (
+                p.post_content LIKE '%<h2>About this Course</h2>%<a%'
+                OR p.post_content LIKE '%<h2>About this Program</h2>%<a%'
+            )
+        GROUP BY p.post_title;
+    ";
+
+            $descriptionResults = $db->select($descriptionQuery);
+
+            // Create a mapping of course title to cleaned description
+            $descriptionMap = [];
+            foreach ($descriptionResults as $descRow) {
+                $descriptionMap[$descRow->post_title] = trim(preg_replace('/[\t\n\r]+/', '', $descRow->course_description));
+            }
+
+            // Main query for enrollment and completion
             $results = $db->select("
-            SELECT 
-                p.ID AS course_id,
-                p.post_title,
-                p.post_name,
-                COUNT(DISTINCT a.user_id) AS enrolled_users,
-                COUNT(DISTINCT CASE WHEN a.activity_status = 1 THEN a.user_id END) AS completed_users
-            FROM 
-                {$prefix}posts p
-            JOIN 
-                {$prefix}learndash_user_activity a
-                ON p.ID = a.course_id
-            WHERE 
-                a.activity_type = 'course'
-                AND p.post_type = 'sfwd-courses'
-                AND p.post_status = 'publish'
-            GROUP BY 
-                p.ID, p.post_title, p.post_name
-            ORDER BY 
-                completed_users DESC
-        ");
+        SELECT 
+            p.ID AS course_id,
+            p.post_title,
+            p.post_name,
+            COUNT(DISTINCT a.user_id) AS enrolled_users,
+            COUNT(DISTINCT CASE WHEN a.activity_status = 1 THEN a.user_id END) AS completed_users
+        FROM 
+            {$prefix}posts p
+        JOIN 
+            {$prefix}learndash_user_activity a
+            ON p.ID = a.course_id
+        WHERE 
+            a.activity_type = 'course'
+            AND p.post_type = 'sfwd-courses'
+            AND p.post_status = 'publish'
+        GROUP BY 
+            p.ID, p.post_title, p.post_name
+        ORDER BY 
+            completed_users DESC
+    ");
 
             if (empty($results)) {
                 Log::info("No course enrollments found.");
@@ -58,13 +134,15 @@ class WordPressPostController extends Controller
                 ], 200);
             }
 
-            $formatted = array_map(function ($item) {
+            // Format the final output
+            $formatted = array_map(function ($item) use ($descriptionMap) {
                 return [
                     'course_id' => (int)$item->course_id,
                     'title' => $item->post_title,
                     'post_name' => $item->post_name,
                     'enrolled_users' => (int)$item->enrolled_users,
                     'completed_users' => (int)$item->completed_users,
+                    'course_description' => $descriptionMap[$item->post_title] ?? 'No description available.'
                 ];
             }, $results);
 
