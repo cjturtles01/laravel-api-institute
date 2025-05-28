@@ -659,7 +659,9 @@ class WordPressPostController extends Controller
 
         try {
             $db = DB::connection('wordpress');
+            $prefix = DB::connection('wordpress')->getTablePrefix(); // Dynamically get prefix
 
+            // STEP 1: Get course IDs
             $courseIds = $db->table('learndash_user_activity')
                 ->where('user_id', $userId)
                 ->where('activity_type', 'course')
@@ -673,8 +675,81 @@ class WordPressPostController extends Controller
                 ], 404);
             }
 
+            // STEP 2: Get course descriptions using provided logic
+            $descriptions = $db->select("
+            SELECT 
+                p.post_title,
+                REPLACE(
+                    REPLACE(
+                        SUBSTRING(
+                            p.post_content,
+                            LOCATE(
+                                CASE 
+                                    WHEN LOCATE('<h2>About this Course</h2>', p.post_content) > 0 
+                                        THEN '<h2>About this Course</h2>'
+                                    ELSE '<h2>About this Program</h2>'
+                                END,
+                                p.post_content
+                            ) + LENGTH(
+                                CASE 
+                                    WHEN LOCATE('<h2>About this Course</h2>', p.post_content) > 0 
+                                        THEN '<h2>About this Course</h2>'
+                                    ELSE '<h2>About this Program</h2>'
+                                END
+                            ),
+                            LOCATE('<a', p.post_content, 
+                                LOCATE(
+                                    CASE 
+                                        WHEN LOCATE('<h2>About this Course</h2>', p.post_content) > 0 
+                                            THEN '<h2>About this Course</h2>'
+                                        ELSE '<h2>About this Program</h2>'
+                                    END,
+                                    p.post_content
+                                )
+                            ) - 
+                            (LOCATE(
+                                CASE 
+                                    WHEN LOCATE('<h2>About this Course</h2>', p.post_content) > 0 
+                                        THEN '<h2>About this Course</h2>'
+                                    ELSE '<h2>About this Program</h2>'
+                                END,
+                                p.post_content
+                            ) + LENGTH(
+                                CASE 
+                                    WHEN LOCATE('<h2>About this Course</h2>', p.post_content) > 0 
+                                        THEN '<h2>About this Course</h2>'
+                                    ELSE '<h2>About this Program</h2>'
+                                END
+                            ))
+                        ),
+                        '<p>', ''
+                    ),
+                    '</p>', ''
+                ) AS course_description
+            FROM {$prefix}posts p
+            JOIN (
+                SELECT DISTINCT post_title
+                FROM {$prefix}posts
+                WHERE post_type = 'sfwd-courses'
+                  AND post_status = 'publish'
+            ) AS published_courses ON p.post_title = published_courses.post_title
+            WHERE 
+                (
+                    p.post_content LIKE '%<h2>About this Course</h2>%<a%'
+                    OR p.post_content LIKE '%<h2>About this Program</h2>%<a%'
+                )
+            GROUP BY p.post_title
+        ");
+
+            // Map descriptions to titles
+            $descriptionMap = [];
+            foreach ($descriptions as $desc) {
+                $descriptionMap[$desc->post_title] = $desc->course_description;
+            }
+
             $results = [];
 
+            // STEP 3: Loop through courses and generate response
             foreach ($courseIds as $courseId) {
                 $course = $db->table('posts')
                     ->where('ID', $courseId)
@@ -684,7 +759,6 @@ class WordPressPostController extends Controller
                 $courseTitle = $course->post_title ?? 'Unknown';
                 $courseSlug = $course->post_name ?? 'unknown-slug';
                 $courseLink = "https://staging-institute.iixglobal.com/$courseSlug/";
-
 
                 $excludedPostIds = $db->table('postmeta as cm')
                     ->join('posts as cp', 'cp.ID', '=', 'cm.post_id')
@@ -722,16 +796,13 @@ class WordPressPostController extends Controller
 
                 $results[] = [
                     // 'course_id' => $courseId,
+                    'course_name' => $courseSlug,
                     'course_title' => $courseTitle,
                     'course_link' => $courseLink,
-                    // 'total_items' => $totalItems,
-                    // 'completed_items' => $completedItems,
-                    'progress_percent' => $totalItems > 0
-                        ? round(($completedItems / $totalItems) * 100, 2)
-                        : 0,
+                    'progress_percent' => $totalItems > 0 ? round(($completedItems / $totalItems) * 100, 2) : 0,
+                    'course_description' => $descriptionMap[$courseTitle] ?? 'No description available.'
                 ];
             }
-
 
             return response()->json($results);
         } catch (\Illuminate\Database\QueryException $e) {
