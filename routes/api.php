@@ -23,7 +23,6 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 });
 
 Route::prefix('wp-posts')->group(callback: function () {
-    Route::get('/test', [ExternalDataController::class, 'fetch']);
 
     Route::get('/temporary_external_data', [ExternalDataController::class, 'temporary_external_data']);
 

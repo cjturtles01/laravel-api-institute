@@ -9,27 +9,6 @@ use Illuminate\Http\Request;
 class ExternalDataController extends Controller
 {
 
-  public function fetch(Request $request)
-  {
-    $url = $request->query('url');
-
-    if (!$url || !filter_var($url, FILTER_VALIDATE_URL)) {
-      return response('Invalid URL', 400);
-    }
-
-    try {
-      $response = Http::get('http://localhost:3000/article', [
-        'url' => $url
-      ]);
-
-      return response($response->body())->header('Content-Type', 'text/html');
-    } catch (\Exception $e) {
-      return response('Failed to fetch article', 500);
-    }
-  }
-
-
-
   public function tester_failed()
   {
     $topic = "Entrepreneurship";
