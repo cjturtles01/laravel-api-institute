@@ -55,24 +55,10 @@ class ExternalDataController extends Controller
     ]);
   }
 
-  public function temporary_external_data()
+  public function temporary_external_data($topic)
   {
     $apiKey = config('services.newsapi.key');
-    $topic = "Entrepreneurship";
-
-    $keywords = [
-      'Impact Investment 101' => 'impact investing',
-      'Entrepreneurship' => 'entrepreneurship',
-      'Cross-Sector Collaboration' => 'cross-sector collaboration',
-      'Social Impact' => 'social impact',
-      'Financial Innovation' => 'financial innovation'
-    ];
-
-    if (!isset($keywords[$topic])) {
-      return response()->json(['error' => 'Invalid topic'], 400);
-    }
-
-    $query = $keywords[$topic];
+    $query = $topic;
 
     $response = Http::withHeaders([
       'x-api-key' => $apiKey
@@ -80,7 +66,6 @@ class ExternalDataController extends Controller
       'q' => $query,
       'language' => 'en',
       'sortBy' => 'publishedAt',
-      'pageSize' => 3
     ]);
 
 
