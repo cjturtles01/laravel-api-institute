@@ -753,14 +753,29 @@ class WordPressPostController extends Controller
                 ], 404);
             }
 
-            // STEP 2: Get course descriptions using provided logic
+            // STEP 2: Get course descriptions
             $descriptions = $db->select("
-            SELECT 
-                p.post_title,
+        SELECT 
+            p.post_title,
+            REPLACE(
                 REPLACE(
-                    REPLACE(
-                        SUBSTRING(
-                            p.post_content,
+                    SUBSTRING(
+                        p.post_content,
+                        LOCATE(
+                            CASE 
+                                WHEN LOCATE('<h2>About this Course</h2>', p.post_content) > 0 
+                                    THEN '<h2>About this Course</h2>'
+                                ELSE '<h2>About this Program</h2>'
+                            END,
+                            p.post_content
+                        ) + LENGTH(
+                            CASE 
+                                WHEN LOCATE('<h2>About this Course</h2>', p.post_content) > 0 
+                                    THEN '<h2>About this Course</h2>'
+                                ELSE '<h2>About this Program</h2>'
+                            END
+                        ),
+                        LOCATE('<a', p.post_content, 
                             LOCATE(
                                 CASE 
                                     WHEN LOCATE('<h2>About this Course</h2>', p.post_content) > 0 
@@ -768,66 +783,86 @@ class WordPressPostController extends Controller
                                     ELSE '<h2>About this Program</h2>'
                                 END,
                                 p.post_content
-                            ) + LENGTH(
-                                CASE 
-                                    WHEN LOCATE('<h2>About this Course</h2>', p.post_content) > 0 
-                                        THEN '<h2>About this Course</h2>'
-                                    ELSE '<h2>About this Program</h2>'
-                                END
-                            ),
-                            LOCATE('<a', p.post_content, 
-                                LOCATE(
-                                    CASE 
-                                        WHEN LOCATE('<h2>About this Course</h2>', p.post_content) > 0 
-                                            THEN '<h2>About this Course</h2>'
-                                        ELSE '<h2>About this Program</h2>'
-                                    END,
-                                    p.post_content
-                                )
-                            ) - 
-                            (LOCATE(
-                                CASE 
-                                    WHEN LOCATE('<h2>About this Course</h2>', p.post_content) > 0 
-                                        THEN '<h2>About this Course</h2>'
-                                    ELSE '<h2>About this Program</h2>'
-                                END,
-                                p.post_content
-                            ) + LENGTH(
-                                CASE 
-                                    WHEN LOCATE('<h2>About this Course</h2>', p.post_content) > 0 
-                                        THEN '<h2>About this Course</h2>'
-                                    ELSE '<h2>About this Program</h2>'
-                                END
-                            ))
-                        ),
-                        '<p>', ''
+                            )
+                        ) - 
+                        (LOCATE(
+                            CASE 
+                                WHEN LOCATE('<h2>About this Course</h2>', p.post_content) > 0 
+                                    THEN '<h2>About this Course</h2>'
+                                ELSE '<h2>About this Program</h2>'
+                            END,
+                            p.post_content
+                        ) + LENGTH(
+                            CASE 
+                                WHEN LOCATE('<h2>About this Course</h2>', p.post_content) > 0 
+                                    THEN '<h2>About this Course</h2>'
+                                ELSE '<h2>About this Program</h2>'
+                            END
+                        ))
                     ),
-                    '</p>', ''
-                ) AS course_description
-            FROM {$prefix}posts p
-            JOIN (
-                SELECT DISTINCT post_title
-                FROM {$prefix}posts
-                WHERE post_type = 'sfwd-courses'
-                  AND post_status = 'publish'
-            ) AS published_courses ON p.post_title = published_courses.post_title
-            WHERE 
-                (
-                    p.post_content LIKE '%<h2>About this Course</h2>%<a%'
-                    OR p.post_content LIKE '%<h2>About this Program</h2>%<a%'
-                )
-            GROUP BY p.post_title
-        ");
+                    '<p>', ''
+                ),
+                '</p>', ''
+            ) AS course_description
+        FROM {$prefix}posts p
+        JOIN (
+            SELECT DISTINCT post_title
+            FROM {$prefix}posts
+            WHERE post_type = 'sfwd-courses'
+              AND post_status = 'publish'
+        ) AS published_courses ON p.post_title = published_courses.post_title
+        WHERE 
+            (
+                p.post_content LIKE '%<h2>About this Course</h2>%<a%'
+                OR p.post_content LIKE '%<h2>About this Program</h2>%<a%'
+            )
+        GROUP BY p.post_title
+    ");
 
-            // Map descriptions to titles
             $descriptionMap = [];
             foreach ($descriptions as $desc) {
                 $descriptionMap[$desc->post_title] = $desc->course_description;
             }
 
+            // STEP 3: Get activity data for all courses
+            $activityData = $db->select("
+        SELECT 
+            a.course_id,
+            a.activity_status,
+            a.activity_updated,
+            FROM_UNIXTIME(a.activity_updated) AS last_updated_date,
+            stats.total_completions,
+            stats.avg_completion_time_seconds,
+            stats.avg_completion_time_hours
+        FROM {$prefix}learndash_user_activity a
+        LEFT JOIN (
+            SELECT 
+                course_id,
+                COUNT(user_id) AS total_completions,
+                AVG(activity_completed - activity_started) AS avg_completion_time_seconds,
+                ROUND(AVG((activity_completed - activity_started) / 3600), 2) AS avg_completion_time_hours
+            FROM {$prefix}learndash_user_activity
+            WHERE 
+                activity_type = 'course'
+                AND activity_status = 1
+                AND activity_started IS NOT NULL
+                AND activity_completed IS NOT NULL
+                AND activity_completed > activity_started
+            GROUP BY course_id
+        ) AS stats ON a.course_id = stats.course_id
+        WHERE 
+            a.user_id = ?
+            AND a.activity_type = 'course'
+    ", [$userId]);
+
+            // Map activity data by course_id
+            $activityMap = [];
+            foreach ($activityData as $activity) {
+                $activityMap[$activity->course_id] = $activity;
+            }
+
             $results = [];
 
-            // STEP 3: Loop through courses and generate response
             foreach ($courseIds as $courseId) {
                 $course = $db->table('posts')
                     ->where('ID', $courseId)
@@ -872,16 +907,21 @@ class WordPressPostController extends Controller
                     ->whereNotIn('post_id', $excludedPostIds)
                     ->count();
 
+                $activity = $activityMap[$courseId] ?? null;
+
                 $results[] = [
-                    // 'course_id' => $courseId,
                     'course_name' => $courseSlug,
                     'course_title' => $courseTitle,
                     'course_link' => $courseLink,
                     'progress_percent' => $totalItems > 0 ? round(($completedItems / $totalItems) * 100, 2) : 0,
                     'course_description' => isset($descriptionMap[$courseTitle])
                         ? trim(preg_replace('/[\t\n\r]+/', '', $descriptionMap[$courseTitle]))
-                        : 'No description available.'
-
+                        : 'No description available.',
+                    'activity_updated' => $activity ? $activity->activity_updated : null,
+                    'last_updated_date' => $activity ? $activity->last_updated_date : null,
+                    'total_completions' => $activity ? $activity->total_completions : 0,
+                    'avg_completion_time_seconds' => $activity ? $activity->avg_completion_time_seconds : 0,
+                    'avg_completion_time_hours' => $activity ? $activity->avg_completion_time_hours : 0,
                 ];
             }
 
