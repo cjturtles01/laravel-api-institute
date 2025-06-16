@@ -18,7 +18,8 @@ class EmailController extends Controller
 
         try {
             // Send to fixed address
-            Mail::to('matantei.loki20@gmail.com')->send(new FixedRecipientMail($content));
+            // Mail::to('matantei.loki20@gmail.com')->send(new FixedRecipientMail($content));
+            Mail::to('macapagongchristopherjames@gmail.com')->send(new FixedRecipientMail($content));
 
             return response()->json(['message' => 'Email sent successfully']);
         } catch (\Exception $e) {
