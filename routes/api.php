@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\API\WordPressPostController;
 use App\Http\Controllers\API\UsersController;
 use App\Http\Controllers\API\ExternalDataController;
+use App\Http\Controllers\EmailController;
 
 /*
 |--------------------------------------------------------------------------
@@ -44,3 +45,5 @@ Route::prefix('institute-user')->group(function () {
     Route::get('/', [UsersController::class, 'users']);
     Route::get('/{id}', [UsersController::class, 'user_by_id']);
 });
+
+Route::post('/send-email', [EmailController::class, 'send']);
