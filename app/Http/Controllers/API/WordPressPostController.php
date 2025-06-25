@@ -142,7 +142,7 @@ class WordPressPostController extends Controller
                     'post_name' => $item->post_name,
                     'enrolled_users' => (int)$item->enrolled_users,
                     'completed_users' => (int)$item->completed_users,
-                    'course_description' => $descriptionMap[$item->post_title] ?? 'No description available.'
+                    // 'course_description' => $descriptionMap[$item->post_title] ?? 'No description available.'
                 ];
             }, $results);
 
