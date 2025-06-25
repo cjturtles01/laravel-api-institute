@@ -871,7 +871,7 @@ class WordPressPostController extends Controller
 
                 $courseTitle = $course->post_title ?? 'Unknown';
                 $courseSlug = $course->post_name ?? 'unknown-slug';
-                $courseLink = "https://staging-institute.iixglobal.com/$courseSlug/";
+                $courseLink = "https://staging-institute.iixglobal.com/courses/$courseSlug/";
 
                 $excludedPostIds = $db->table('postmeta as cm')
                     ->join('posts as cp', 'cp.ID', '=', 'cm.post_id')
