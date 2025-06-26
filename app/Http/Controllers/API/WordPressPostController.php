@@ -137,12 +137,13 @@ class WordPressPostController extends Controller
             // Format the final output
             $formatted = array_map(function ($item) use ($descriptionMap) {
                 return [
+                    'courseLink' => "https://staging-institute.iixglobal.com/$item->post_name/",
                     'course_id' => (int)$item->course_id,
                     'title' => $item->post_title,
                     'post_name' => $item->post_name,
                     'enrolled_users' => (int)$item->enrolled_users,
                     'completed_users' => (int)$item->completed_users,
-                    // 'course_description' => $descriptionMap[$item->post_title] ?? 'No description available.'
+                    'course_description' => $descriptionMap[$item->post_title] ?? 'No description available.'
                 ];
             }, $results);
 
